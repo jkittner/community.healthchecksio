@@ -13,7 +13,8 @@ DOCUMENTATION = r"""
 module: checks_info
 short_description: Get a list of checks
 description:
-  - Returns a list of checks belonging to the user, optionally filtered by one or more tags.
+  - Returns a list of checks belonging to the user, optionally filtered by one or more tags or a specific check by UUID or slug.
+  - When filtering by UUID or slug, exactly one check will be returned (if it exists).
 author: "Mark Mercado (@mamercad)"
 version_added: 0.1.0
 options:
@@ -26,12 +27,23 @@ options:
   tags:
     description:
       - Filters the checks and returns only the checks that are tagged with the specified value.
+      - Mutually exclusive with C(uuid) and C(slug).
     type: list
     elements: str
     required: false
   uuid:
     description:
-      - If specified, returns this specific check.
+      - If specified, returns this specific check by its UUID.
+      - UUID takes precedence over slug if both are provided.
+      - Mutually exclusive with C(tags).
+    type: str
+    required: false
+  slug:
+    description:
+      - If specified, returns this specific check by its slug.
+      - The slug is a unique identifier within the project, set when creating or updating the check.
+      - UUID takes precedence if both UUID and slug are provided.
+      - Mutually exclusive with C(tags).
     type: str
     required: false
 extends_documentation_fragment:
@@ -39,9 +51,60 @@ extends_documentation_fragment:
 """
 
 EXAMPLES = r"""
+- name: Get all checks
+  community.healthchecksio.checks_info:
+  register: result
+
+- name: Get checks with specific tags
+  community.healthchecksio.checks_info:
+    tags: ["production", "monitoring"]
+  register: result
+
+- name: Get a specific check by UUID
+  community.healthchecksio.checks_info:
+    uuid: "524d0f69-0ff3-4120-a2e2-03ebd5736b25"
+  register: result
+
+- name: Get a specific check by slug
+  community.healthchecksio.checks_info:
+    slug: "my-app-prod"
+  register: result
 """
 
 RETURN = r"""
+data:
+  description: Check or checks information
+  returned: always
+  type: dict or list of dict
+  sample:
+    - channels: ''
+      desc: ''
+      failure_kw: ''
+      filter_body: false
+      filter_default_fail: false
+      filter_http_body: false
+      filter_subject: false
+      grace: 3600
+      last_ping: null
+      manual_resume: false
+      methods: ''
+      n_pings: 0
+      name: test
+      next_ping: null
+      pause_url: https://healthchecks.io/api/v3/checks/524d0f69-0ff3-4120-a2e2-03ebd5736b25/pause
+      ping_url: https://hc-ping.com/524d0f69-0ff3-4120-a2e2-03ebd5736b25
+      resume_url: https://healthchecks.io/api/v3/checks/524d0f69-0ff3-4120-a2e2-03ebd5736b25/resume
+      schedule: '* * * * *'
+      slug: test
+      started: false
+      start_kw: ''
+      status: new
+      success_kw: ''
+      tags: ''
+      tz: UTC
+      unique_key: 524d0f69-0ff3-4120-a2e2-03ebd5736b25
+      update_url: https://healthchecks.io/api/v3/checks/524d0f69-0ff3-4120-a2e2-03ebd5736b25
+      uuid: 524d0f69-0ff3-4120-a2e2-03ebd5736b25
 """
 
 
@@ -65,11 +128,12 @@ def main():
         state=dict(type="str", choices=["present"], default="present"),
         tags=dict(type="list", elements="str", required=False),
         uuid=dict(type="str", required=False),
+        slug=dict(type="str", required=False),
     )
     module = AnsibleModule(
         argument_spec=argument_spec,
         supports_check_mode=True,
-        mutually_exclusive=[("tags", "uuid")],
+        mutually_exclusive=[("tags", "uuid"), ("tags", "slug")],
     )
 
     run(module)

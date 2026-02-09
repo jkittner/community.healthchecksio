@@ -11,7 +11,15 @@ This Ansible collection contains modules for assisting in the automation of the 
 From their site:
 > Healthchecks.io is an online service for monitoring regularly running tasks such as cron jobs. It uses the Dead man's switch technique: the monitored system must "check in" with Healthchecks.io at regular, configurable time intervals. When Healthchecks.io detects a missed check-in, it sends out alerts.
 
-The service documentation is located at [https://healthchecks.io/docs/](https://healthchecks.io/docs/) and the API documentation is located at [https://healthchecks.io/docs/api/](https://healthchecks.io/docs/api/). This Ansible module strives for API parity.
+The service documentation is located at [https://healthchecks.io/docs/](https://healthchecks.io/docs/) and the API documentation is located at [https://healthchecks.io/docs/api/](https://healthchecks.io/docs/api/). This Ansible collection implements support for **Healthchecks.io API v3**.
+
+### API Version
+
+This collection now supports **Healthchecks.io API v3**. All modules use the v3 API endpoints by default. The default API base URL is `https://healthchecks.io/api/v3`.
+
+For **self-hosted instances**, you must use a v3-compatible instance and specify the correct v3 API base URL (e.g., `https://healthchecks.example.com/api/v3`).
+
+**Note:** API v1 is no longer supported. If you need v1 support, please use an older version of this collection.
 
 ## Code of Conduct
 
@@ -95,10 +103,10 @@ N/A
 
 * `community.healthchecksio.badges_info` - Returns a map of all tags in the project, with badge URLs for each tag.
 * `community.healthchecksio.channels_info` - Returns a list of integrations belonging to the project.
-* `community.healthchecksio.checks_flips_info` - Get a list of check's status changes.
-* `community.healthchecksio.checks_info` - Returns a list of checks belonging to the user, optionally filtered by one or more tags.
-* `community.healthchecksio.checks_pings_info` - Returns a list of pings this check has received.
-* `community.healthchecksio.checks` - Create, delete, update, and pause checks.
+* `community.healthchecksio.checks_flips_info` - Get a list of check's status changes with optional time-range filtering (v3 feature).
+* `community.healthchecksio.checks_info` - Returns a list of checks belonging to the user, optionally filtered by tags, UUID, or slug (v3 feature).
+* `community.healthchecksio.checks_pings_info` - Returns a list of pings this check has received, accessible by UUID or slug (v3 feature).
+* `community.healthchecksio.checks` - Create, delete, update, pause, and resume checks. Supports slug-based identification and keyword filtering (v3 features).
 
 #### Ping API
 
@@ -146,6 +154,31 @@ N/A
 ```
 
 ```yaml
+- name: Create a check with a custom slug (v3 feature)
+  community.healthchecksio.checks:
+    state: present
+    api_key: "{{ api_key }}"
+    name: "production api"
+    slug: "prod-api-v2"
+    unique: ["slug"]
+    timeout: 300
+    tags: ["production"]
+```
+
+```yaml
+- name: Create a check with keyword filtering (v3 feature)
+  community.healthchecksio.checks:
+    state: present
+    api_key: "{{ api_key }}"
+    name: "backup job"
+    unique: ["name"]
+    success_kw: "SUCCESS"
+    failure_kw: "FAILED"
+    filter_http_body: true
+    timeout: 86400
+```
+
+```yaml
 - name: Returns all of the checks
   community.healthchecksio.checks_info:
     state: present
@@ -153,7 +186,21 @@ N/A
 ```
 
 ```yaml
-- name: Pause a check by uuid
+- name: Get a check by UUID
+  community.healthchecksio.checks_info:
+    api_key: "{{ api_key }}"
+    uuid: "{{ check_uuid }}"
+```
+
+```yaml
+- name: Get a check by slug (v3 feature)
+  community.healthchecksio.checks_info:
+    api_key: "{{ api_key }}"
+    slug: "prod-api-v2"
+```
+
+```yaml
+- name: Pause a check by UUID
   community.healthchecksio.checks:
     state: pause
     api_key: "{{ api_key }}"
@@ -161,7 +208,15 @@ N/A
 ```
 
 ```yaml
-- name: Delete a check by uuid
+- name: Resume a paused check (v3 feature)
+  community.healthchecksio.checks:
+    state: resume
+    api_key: "{{ api_key }}"
+    uuid: "{{ check_uuid }}"
+```
+
+```yaml
+- name: Delete a check by UUID
   community.healthchecksio.checks:
     state: absent
     api_key: "{{ api_key }}"
@@ -169,19 +224,32 @@ N/A
 ```
 
 ```yaml
-- name: Get a list of checks pings
+- name: Get a list of check pings by UUID
   community.healthchecksio.checks_pings_info:
-    state: pings
     api_key: "{{ api_key }}"
     uuid: "{{ check_uuid }}"
 ```
 
 ```yaml
-- name: Get a list of checks flips
+- name: Get pings for a check by slug (v3 feature)
+  community.healthchecksio.checks_pings_info:
+    api_key: "{{ api_key }}"
+    slug: "prod-api-v2"
+```
+
+```yaml
+- name: Get a list of check flips by UUID
   community.healthchecksio.checks_flips_info:
-    state: flips
     api_key: "{{ api_key }}"
     uuid: "{{ check_uuid }}"
+```
+
+```yaml
+- name: Get flips with time-range filtering (v3 feature)
+  community.healthchecksio.checks_flips_info:
+    api_key: "{{ api_key }}"
+    uuid: "{{ check_uuid }}"
+    seconds: 3600
 ```
 
 ### Ping API
@@ -212,12 +280,16 @@ N/A
 
 ### Using a self-hosted instance of Healthchecks.io
 
-The `management_api_base_url` and `ping_api_base_url` parameters can be used to direct the modules in this Collection towards a self-hosted instance of Healthchecks.io. By default, or if unset, it defaults to the public instance located at hc-ping.com.
+The `management_api_base_url` and `ping_api_base_url` parameters can be used to direct the modules in this Collection towards a self-hosted instance of Healthchecks.io. 
 
-Example Ansible configuration using the `management_api_base_url` and `ping_api_base_url` variables:
+**Important:** Self-hosted instances must be running **Healthchecks.io v3** API. The `management_api_base_url` must point to the v3 API endpoint (e.g., `https://healthchecks.example.com/api/v3`).
+
+By default, the public Healthchecks.io instance is used with the v3 API base URL `https://healthchecks.io/api/v3`.
+
+Example Ansible configuration using a self-hosted instance:
 
 ```yaml
-- name: Create a check named "test"
+- name: Create a check on self-hosted instance
   community.healthchecksio.checks:
     state: present
     api_key: "{{ api_key }}"

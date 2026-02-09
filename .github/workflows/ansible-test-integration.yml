@@ -29,8 +29,8 @@ jobs:
             ./tests/utils/render.sh
             tests/integration/integration_config.yml.template
             > tests/integration/integration_config.yml
-          python-version: 3.9
-          target-python-version: 3.8
+          python-version: 3.14
+          target-python-version: 3.14
           testing-type: integration
           test-deps: community.general
 
@@ -51,7 +51,7 @@ jobs:
             ./tests/utils/render.sh
             tests/integration/integration_config.yml.template
             > tests/integration/integration_config.yml
-          python-version: 3.9
-          target-python-version: 3.8
+          python-version: 3.14
+          target-python-version: 3.14
           testing-type: integration
           test-deps: community.general

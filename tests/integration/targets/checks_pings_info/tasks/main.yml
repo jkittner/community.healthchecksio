@@ -51,21 +51,64 @@
           - result.data is defined
           - result.data.pings is defined
 
+    - name: Create a check with custom slug for pings testing
+      community.healthchecksio.checks:
+        state: present
+        api_key: "{{ api_key }}"
+        management_api_base_url: "{{ management_api_base_url }}"
+        ping_api_base_url: "{{ ping_api_base_url }}"
+        name: pings-test-check
+        slug: pings-test-check
+        unique: ["slug"]
+        timeout: 300
+      register: pings_check
+
     - name: Pause for ten seconds
       ansible.builtin.pause:
         seconds: 10
 
-    - name: Delete the Simple check
+    - name: Get pings by UUID
+      community.healthchecksio.checks_pings_info:
+        api_key: "{{ api_key }}"
+        management_api_base_url: "{{ management_api_base_url }}"
+        ping_api_base_url: "{{ ping_api_base_url }}"
+        uuid: "{{ pings_check.uuid }}"
+      register: result
+
+    - name: Verify pings retrieved by UUID
+      ansible.builtin.assert:
+        that:
+          - not result.changed
+          - result.data is defined
+          - result.data.pings is defined
+
+    - name: Get pings by slug
+      community.healthchecksio.checks_pings_info:
+        api_key: "{{ api_key }}"
+        management_api_base_url: "{{ management_api_base_url }}"
+        ping_api_base_url: "{{ ping_api_base_url }}"
+        slug: "pings-test-check"
+      register: result
+
+    - name: Verify pings retrieved by slug
+      ansible.builtin.assert:
+        that:
+          - not result.changed
+          - result.data is defined
+          - result.data.pings is defined
+
+    - name: Pause for ten seconds
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Delete the pings test check
       community.healthchecksio.checks:
         state: absent
         api_key: "{{ api_key }}"
         management_api_base_url: "{{ management_api_base_url }}"
         ping_api_base_url: "{{ ping_api_base_url }}"
-        uuid: "{{ uuid }}"
-      register: result
+        uuid: "{{ pings_check.uuid }}"
 
-    - name: Verify integrations
-      ansible.builtin.assert:
         that:
           - result.changed
           - result.msg is defined

@@ -149,7 +149,7 @@ class HealthchecksioHelper:
                 ),
                 required=False,
                 no_log=False,
-                default="https://healthchecks.io/api/v1",
+                default="https://healthchecks.io/api/v3",
             ),
             ping_api_base_url=dict(
                 type="str",
@@ -256,7 +256,26 @@ class ChecksFlipsInfo(object):
             self.module.exit_json(changed=False, data={})
 
         uuid = self.module.params.get("uuid", None)
-        endpoint = "checks/{0}/flips".format(uuid)
+        slug = self.module.params.get("slug", None)
+        seconds = self.module.params.get("seconds", None)
+        start = self.module.params.get("start", None)
+        end = self.module.params.get("end", None)
+
+        # UUID takes precedence over slug
+        identifier = uuid if uuid is not None else slug
+        endpoint = "checks/{0}/flips".format(identifier)
+
+        # Build query string for time-range filtering
+        query_params = []
+        if seconds is not None:
+            query_params.append("seconds={0}".format(seconds))
+        if start is not None:
+            query_params.append("start={0}".format(start))
+        if end is not None:
+            query_params.append("end={0}".format(end))
+
+        if query_params:
+            endpoint += "?" + "&".join(query_params)
 
         response = self.rest.get(endpoint)
         json_data = response.json
@@ -290,8 +309,13 @@ class ChecksInfo(object):
                 endpoint += "?" + tags
 
         uuid = self.module.params.get("uuid", None)
+        slug = self.module.params.get("slug", None)
+
+        # UUID takes precedence over slug
         if uuid is not None:
             endpoint += "/" + uuid
+        elif slug is not None:
+            endpoint += "/" + slug
 
         response = self.rest.get(endpoint)
         json_data = response.json
@@ -316,7 +340,11 @@ class ChecksPingsInfo(object):
             self.module.exit_json(changed=False, data={})
 
         uuid = self.module.params.get("uuid", None)
-        endpoint = "checks/{0}/pings".format(uuid)
+        slug = self.module.params.get("slug", None)
+
+        # UUID takes precedence over slug
+        identifier = uuid if uuid is not None else slug
+        endpoint = "checks/{0}/pings".format(identifier)
 
         response = self.rest.get(endpoint)
         json_data = response.json
@@ -491,6 +519,27 @@ class Checks(object):
             self.module.fail_json(
                 changed=False,
                 msg="Failed delete check {0} [HTTP {1}]".format(uuid, status_code),
+            )
+
+    def resume(self):
+        if self.module.check_mode:
+            self.module.exit_json(changed=False, data={})
+
+        uuid = self.module.params.get("uuid")
+        endpoint = "checks/{0}/resume".format(uuid)
+        response = self.rest.post(endpoint)
+        status_code = response.status_code
+
+        if status_code == 200:
+            self.module.exit_json(
+                changed=True, msg="Check {0} successfully resumed".format(uuid)
+            )
+        elif status_code == 404:
+            self.module.exit_json(changed=False, msg="Check {0} not found".format(uuid))
+        else:
+            self.module.fail_json(
+                changed=False,
+                msg="Failed to resume check {0} [HTTP {1}]".format(uuid, status_code),
             )
 
 

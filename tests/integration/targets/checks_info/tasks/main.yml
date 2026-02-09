@@ -21,3 +21,80 @@
           - not result.changed
           - result.data is defined
           - result.data.checks is defined
+    - name: Create a test check for slug filtering
+      community.healthchecksio.checks:
+        state: present
+        api_key: "{{ api_key }}"
+        management_api_base_url: "{{ management_api_base_url }}"
+        ping_api_base_url: "{{ ping_api_base_url }}"
+        name: slug-test-check
+        slug: slug-test-check
+        unique: ["slug"]
+        timeout: 300
+        tags: ["slug-test"]
+      register: created_check
+
+    - name: Pause for ten seconds
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Get check by UUID
+      community.healthchecksio.checks_info:
+        api_key: "{{ api_key }}"
+        management_api_base_url: "{{ management_api_base_url }}"
+        ping_api_base_url: "{{ ping_api_base_url }}"
+        uuid: "{{ created_check.uuid }}"
+      register: result
+
+    - name: Verify check retrieved by UUID
+      ansible.builtin.assert:
+        that:
+          - not result.changed
+          - result.data is defined
+          - result.data.name == "slug-test-check"
+          - result.data.uuid == created_check.uuid
+
+    - name: Get check by slug
+      community.healthchecksio.checks_info:
+        api_key: "{{ api_key }}"
+        management_api_base_url: "{{ management_api_base_url }}"
+        ping_api_base_url: "{{ ping_api_base_url }}"
+        slug: "slug-test-check"
+      register: result
+
+    - name: Verify check retrieved by slug
+      ansible.builtin.assert:
+        that:
+          - not result.changed
+          - result.data is defined
+          - result.data.name == "slug-test-check"
+          - result.data.slug == "slug-test-check"
+
+    - name: Get checks by tags
+      community.healthchecksio.checks_info:
+        api_key: "{{ api_key }}"
+        management_api_base_url: "{{ management_api_base_url }}"
+        ping_api_base_url: "{{ ping_api_base_url }}"
+        tags:
+          - slug-test
+      register: result
+
+    - name: Verify checks retrieved by tags
+      ansible.builtin.assert:
+        that:
+          - not result.changed
+          - result.data is defined
+          - result.data.checks is defined
+          - result.data.checks | length > 0
+
+    - name: Pause for ten seconds
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Delete the slug test check
+      community.healthchecksio.checks:
+        state: absent
+        api_key: "{{ api_key }}"
+        management_api_base_url: "{{ management_api_base_url }}"
+        ping_api_base_url: "{{ ping_api_base_url }}"
+        uuid: "{{ created_check.uuid }}"

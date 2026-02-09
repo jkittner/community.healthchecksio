@@ -27,7 +27,15 @@ options:
     default: present
   uuid:
     description:
-      - If specified, returns this specific check.
+      - UUID of the check to get pings for.
+      - UUID takes precedence over slug if both are provided.
+    type: str
+    required: false
+  slug:
+    description:
+      - Slug of the check to get pings for.
+      - The slug is a unique identifier within the project.
+      - UUID takes precedence if both UUID and slug are provided.
     type: str
     required: false
 extends_documentation_fragment:
@@ -35,10 +43,13 @@ extends_documentation_fragment:
 """
 
 EXAMPLES = r"""
-- name: Get a list of checks pings
+- name: Get pings for a check by UUID
   community.healthchecksio.checks_pings_info:
-    state: present
-    uuid: cae50618-c97f-483e-9814-0277dc523d1e
+    uuid: "524d0f69-0ff3-4120-a2e2-03ebd5736b25"
+
+- name: Get pings for a check by slug
+  community.healthchecksio.checks_pings_info:
+    slug: "my-app-prod"
 """
 
 RETURN = r"""
@@ -77,6 +88,7 @@ def main():
     argument_spec.update(
         state=dict(type="str", choices=["present"], default="present"),
         uuid=dict(type="str", required=False),
+        slug=dict(type="str", required=False),
     )
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
 

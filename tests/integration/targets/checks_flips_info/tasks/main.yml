@@ -50,21 +50,80 @@
           - result.data is defined
           - result.data.flips is defined
 
+    - name: Create a check with custom slug for flips testing
+      community.healthchecksio.checks:
+        state: present
+        api_key: "{{ api_key }}"
+        management_api_base_url: "{{ management_api_base_url }}"
+        ping_api_base_url: "{{ ping_api_base_url }}"
+        name: flips-test-check
+        slug: flips-test-check
+        unique: ["slug"]
+        timeout: 300
+      register: flips_check
+
     - name: Pause for ten seconds
       ansible.builtin.pause:
         seconds: 10
 
-    - name: Delete the Simple check
+    - name: Get flips by UUID
+      community.healthchecksio.checks_flips_info:
+        api_key: "{{ api_key }}"
+        management_api_base_url: "{{ management_api_base_url }}"
+        ping_api_base_url: "{{ ping_api_base_url }}"
+        uuid: "{{ flips_check.uuid }}"
+      register: result
+
+    - name: Verify flips retrieved by UUID
+      ansible.builtin.assert:
+        that:
+          - not result.changed
+          - result.data is defined
+          - result.data.flips is defined
+
+    - name: Get flips by slug
+      community.healthchecksio.checks_flips_info:
+        api_key: "{{ api_key }}"
+        management_api_base_url: "{{ management_api_base_url }}"
+        ping_api_base_url: "{{ ping_api_base_url }}"
+        slug: "flips-test-check"
+      register: result
+
+    - name: Verify flips retrieved by slug
+      ansible.builtin.assert:
+        that:
+          - not result.changed
+          - result.data is defined
+          - result.data.flips is defined
+
+    - name: Get flips with time-range filtering (seconds)
+      community.healthchecksio.checks_flips_info:
+        api_key: "{{ api_key }}"
+        management_api_base_url: "{{ management_api_base_url }}"
+        ping_api_base_url: "{{ ping_api_base_url }}"
+        uuid: "{{ flips_check.uuid }}"
+        seconds: 3600
+      register: result
+
+    - name: Verify flips with seconds filter
+      ansible.builtin.assert:
+        that:
+          - not result.changed
+          - result.data is defined
+          - result.data.flips is defined
+
+    - name: Pause for ten seconds
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: Delete the flips test check
       community.healthchecksio.checks:
         state: absent
         api_key: "{{ api_key }}"
         management_api_base_url: "{{ management_api_base_url }}"
         ping_api_base_url: "{{ ping_api_base_url }}"
-        uuid: "{{ uuid }}"
-      register: result
+        uuid: "{{ flips_check.uuid }}"
 
-    - name: Verify integrations
-      ansible.builtin.assert:
         that:
           - result.changed
           - result.msg is defined
