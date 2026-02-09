@@ -432,31 +432,74 @@ class Checks(object):
                 msg=f"Expected to find one check matching unique parameters, {len(c)} found",
             )
 
-        # Get the channels string for comparison (already processed above)
-        channels = request_params["channels"]
+        # Convert channel names/wildcards to UUIDs for comparison
+        # This is needed because the API converts names to UUIDs
+        channels_for_comparison = request_params["channels"]
+        if channels_for_comparison and channels_for_comparison != "*":
+            # Fetch all channels to do name->UUID conversion
+            all_channels = self.rest.get("channels").json.get("channels", [])
+            channel_inputs = channels_for_comparison.split(",")
+            converted_channels = []
+            
+            for channel_input in channel_inputs:
+                channel_input = channel_input.strip()
+                # Try to find by name first
+                matching = [ch for ch in all_channels if ch.get("name") == channel_input]
+                if matching:
+                    converted_channels.append(matching[0]["id"])
+                else:
+                    # Assume it's already a UUID
+                    converted_channels.append(channel_input)
+            
+            channels_for_comparison = ",".join(converted_channels)
+        elif channels_for_comparison == "*":
+            # Convert "*" to actual channel UUIDs for comparison
+            all_channels = self.rest.get("channels").json.get("channels", [])
+            channel_ids = [channel["id"] for channel in all_channels]
+            channels_for_comparison = ",".join(channel_ids)
 
-        # If all request parameters (except unique and api_key) match, exit without changes
-        skip_idempotency_params = [
-            "unique",
-            "api_key",  # Kept for backward compatibility
-            "management_api_key",
-            "management_api_token",
-            "management_api_base_url",
-            "ping_api_key",
-            "ping_api_base_url",
-            "ping_api_token",
-            "channels",
-        ]
-        if (
-            len(c) == 1
-            and all(
-                c[0][k] == request_params[k]
-                for k in request_params
-                if k not in skip_idempotency_params
-            )
-            and sorted(c[0]["channels"].split(",")) == sorted(channels.split(","))
-        ):
-            self.module.exit_json(changed=False, data=c[0], uuid=self.get_uuid(c[0]))
+        # If a check was found by unique parameters, check if it needs updating
+        if len(c) == 1:
+            # Fields to compare for idempotency (only actual check fields, not module parameters)
+            check_fields_to_compare = {
+                "name", "slug", "tags", "desc", "timeout", "grace", "schedule", 
+                "tz", "manual_resume", "methods", "start_kw", "success_kw", 
+                "failure_kw", "filter_subject", "filter_body", "filter_http_body", 
+                "filter_default_fail"
+            }
+            
+            # Check if any field has changed
+            has_changes = False
+            for field in check_fields_to_compare:
+                # Only compare if field was explicitly set in request_params
+                # (after transformations like tags and channels conversion)
+                if field in request_params:
+                    api_value = c[0].get(field)
+                    request_value = request_params.get(field)
+                    
+                    # Convert None/null to empty string for comparison
+                    if api_value is None:
+                        api_value = ""
+                    if request_value is None:
+                        request_value = ""
+                    
+                    if api_value != request_value:
+                        has_changes = True
+                        break
+            
+            # Also check channels separately (need to compare as sets since order doesn't matter)
+            if not has_changes:
+                existing_channels = set(c[0].get("channels", "").split(",")) if c[0].get("channels") else set()
+                request_channels = set(channels_for_comparison.split(",")) if channels_for_comparison else set()
+                # Remove empty strings from the sets
+                existing_channels.discard("")
+                request_channels.discard("")
+                if existing_channels != request_channels:
+                    has_changes = True
+            
+            # If no changes, exit without updating
+            if not has_changes:
+                self.module.exit_json(changed=False, data=c[0], uuid=self.get_uuid(c[0]))
 
         response = self.rest.post(endpoint, data=request_params)
         json_data = response.json
