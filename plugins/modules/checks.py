@@ -101,12 +101,17 @@ options:
     default: ""
   channels:
     description:
+      - A list of channels (integrations) to assign to this check.
       - By default, this API call assigns no integrations to the newly created check.
-      - Set this field to a special value "*" to automatically assign all existing integrations.
-      - To assign specific integrations, use a comma-separated list of integration UUIDs.
-    type: str
+      - Set to C(["*"]) or C("*") to automatically assign all existing integrations.
+      - To assign specific integrations, provide a list of channel names or UUIDs.
+      - Channel names are case-sensitive and must not contain commas. Example C(["Email to Alice", "SMS to Alice"]).
+      - You can mix channel names and UUIDs in the same list. Example C(["Telegram", "4ec5a071-2d08-4baa-898a-eb4eb3cd6941"]).
+      - Look up integration UUIDs and names using the M(community.healthchecksio.channels_info) module.
+    type: list
+    elements: str
     required: false
-    default: ""
+    default: []
   unique:
     description:
       - Enables "upsert" functionality.
@@ -226,6 +231,44 @@ EXAMPLES = r"""
     filter_http_body: true
     timeout: 300
 
+- name: Create a check with all channels
+  community.healthchecksio.checks:
+    state: present
+    name: "all channels check"
+    unique: ["name"]
+    timeout: 300
+    channels: "*"
+
+- name: Create a check with specific channels by name
+  community.healthchecksio.checks:
+    state: present
+    name: "named channels check"
+    unique: ["name"]
+    timeout: 300
+    channels:
+      - Telegram
+      - Email to Alice
+
+- name: Create a check with specific channels by UUID
+  community.healthchecksio.checks:
+    state: present
+    name: "uuid channels check"
+    unique: ["name"]
+    timeout: 300
+    channels:
+      - 4ec5a071-2d08-4baa-898a-eb4eb3cd6941
+      - 746a083e-f542-4554-be1a-707ce16d3acc
+
+- name: Create a check with mixed channel names and UUIDs
+  community.healthchecksio.checks:
+    state: present
+    name: "mixed channels check"
+    unique: ["name"]
+    timeout: 300
+    channels:
+      - Telegram
+      - 4ec5a071-2d08-4baa-898a-eb4eb3cd6941
+
 - name: Pause a check by UUID
   community.healthchecksio.checks:
     state: pause
@@ -324,7 +367,7 @@ def main():
         tz=dict(type="str", required=False),
         manual_resume=dict(type="bool", required=False, default=False),
         methods=dict(type="str", required=False, default=""),
-        channels=dict(type="str", required=False, default=""),
+        channels=dict(type="list", elements="str", required=False, default=[]),
         unique=dict(type="list", elements="str", required=False, default=[]),
         uuid=dict(type="str", required=False, default=""),
         start_kw=dict(type="str", required=False, default=""),

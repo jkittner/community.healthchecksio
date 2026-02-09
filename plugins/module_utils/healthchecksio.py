@@ -402,6 +402,22 @@ class Checks(object):
         tags = self.module.params.get("tags", [])
         request_params["tags"] = " ".join(tags)
 
+        # Handle channels: convert list to comma-separated string
+        # The API accepts: "*", comma-separated UUIDs, or comma-separated channel names
+        channels_input = self.module.params.get("channels", [])
+        if channels_input:
+            # Handle case where "*" is passed as a string (for backward compatibility)
+            if isinstance(channels_input, str):
+                request_params["channels"] = channels_input
+            elif isinstance(channels_input, list):
+                # Join list elements with commas
+                # API will handle whether they are names, UUIDs, or "*"
+                request_params["channels"] = ",".join(channels_input)
+            else:
+                request_params["channels"] = ""
+        else:
+            request_params["channels"] = ""
+
         checks = self.rest.get("checks").json["checks"]
         unique = request_params["unique"]
         c = [
@@ -416,13 +432,8 @@ class Checks(object):
                 msg=f"Expected to find one check matching unique parameters, {len(c)} found",
             )
 
-        # Extract all available channels if "*" is given
-        if request_params["channels"] == "*":
-            channels = self.rest.get("channels").json.get("channels")
-            channels = [channel["id"] for channel in channels]
-            channels = ",".join(channels)
-        else:
-            channels = request_params["channels"]
+        # Get the channels string for comparison (already processed above)
+        channels = request_params["channels"]
 
         # If all request parameters (except unique and api_key) match, exit without changes
         skip_idempotency_params = [
