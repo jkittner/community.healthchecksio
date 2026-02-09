@@ -67,11 +67,15 @@ class HealthchecksioHelper:
 
     def send(self, method, path, data=None):
         url = self._url_builder(path)
-        data = self.module.jsonify(data)
-
-        if method == "DELETE":
-            if data == "null":
-                data = None
+        
+        # For DELETE requests with no data, don't jsonify
+        if method == "DELETE" and data is None:
+            data = None
+        else:
+            data = self.module.jsonify(data)
+            if method == "DELETE":
+                if data == "null":
+                    data = None
 
         resp, info = fetch_url(
             self.module,
@@ -538,20 +542,61 @@ class Checks(object):
             self.module.exit_json(changed=False, data={})
 
         uuid = self.module.params.get("uuid")
+        slug = self.module.params.get("slug")
+        
+        # If no uuid provided, try to look up by slug
+        if not uuid:
+            if not slug:
+                self.module.fail_json(
+                    changed=False,
+                    msg="Either uuid or slug is required when state is absent."
+                )
+            # Look up check by slug to get its uuid
+            checks = self.rest.get("checks").json.get("checks", [])
+            matching_checks = [c for c in checks if c.get("slug") == slug]
+            
+            if len(matching_checks) == 0:
+                self.module.exit_json(
+                    changed=False,
+                    msg="Check with slug '{0}' not found".format(slug)
+                )
+            elif len(matching_checks) > 1:
+                self.module.fail_json(
+                    changed=False,
+                    msg="Multiple checks found with slug '{0}'".format(slug)
+                )
+            
+            uuid = matching_checks[0].get("uuid")
+        
         endpoint = "checks/{0}".format(uuid)
         response = self.rest.delete(endpoint)
         status_code = response.status_code
+        json_data = response.json
 
         if status_code == 200:
             self.module.exit_json(
-                changed=True, msg="Check {0} successfully deleted".format(uuid)
+                changed=True,
+                msg="Check {0} successfully deleted".format(uuid),
+                data=json_data
+            )
+        elif status_code == 401:
+            self.module.fail_json(
+                changed=False,
+                msg="Unauthorized: The API key is either missing or invalid"
+            )
+        elif status_code == 403:
+            self.module.fail_json(
+                changed=False,
+                msg="Forbidden: Access denied, wrong API key"
             )
         elif status_code == 404:
             self.module.exit_json(changed=False, msg="Check {0} not found".format(uuid))
         else:
             self.module.fail_json(
                 changed=False,
-                msg="Failed delete check {0} [HTTP {1}]".format(uuid, status_code),
+                msg="Failed delete check {0} [HTTP {1}: {2}]".format(
+                    uuid, status_code, json_data.get("error", "(empty error message)") if json_data else ""
+                ),
             )
 
     def pause(self):

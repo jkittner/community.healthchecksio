@@ -319,6 +319,10 @@ data:
     unique_key: 524d0f69-0ff3-4120-a2e2-03ebd5736b25
     update_url: https://healthchecks.io/api/v3/checks/524d0f69-0ff3-4120-a2e2-03ebd5736b25
     uuid: 524d0f69-0ff3-4120-a2e2-03ebd5736b25
+  note: |
+    In addition to the fields above, you can construct a slug-based ping URL using:
+    C(https://hc-ping.com/{{ data.slug }})
+    This is equivalent to the UUID-based C(ping_url) but uses the check's slug instead.
 msg:
   description: Create, update, pause, resume, or delete message
   returned: always
